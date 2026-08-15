@@ -1,0 +1,46 @@
+{
+  "name": "@icelily/dsh-gitbash-preset",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness plugin: installs the 'minimal-gitbash' agent preset — the Windows variant of the shipped minimal preset that routes the bash tool through Git for Windows bash (MSYS) instead of the unsupported win32 PTY shell.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "agent-presets",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "check": "node --check lib/index.js && node --check agent-presets/minimal-gitbash/gitbash-executor.mjs && node --check agent-presets/minimal-gitbash/test/gitbash-executor.test.mjs",
+    "test": "node --test agent-presets/minimal-gitbash/test/gitbash-executor.test.mjs"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "agent-preset",
+    "minimal",
+    "git-bash",
+    "msys",
+    "windows"
+  ],
+  "license": "MIT",
+  "author": "icelily",
+  "engines": {
+    "node": ">=20"
+  }
+}

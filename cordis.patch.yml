@@ -1,0 +1,13 @@
+# dsh-gitbash-preset bundle patch: inserts the installer row into the web
+# profile roster. Applied as a profile bundle layer (the `dsh.bundle.patch`
+# manifest field); activate with:
+#
+#   dsh plugin --profile web add link:<path-to-this-package>
+#
+# The row's node half copies the packaged `minimal-gitbash` agent preset into
+# the user preset root (${DSH_HOME:-~/.dsh}/.agent-presets) on boot, unless it
+# is already installed. Pass `force: true` in the row config to overwrite the
+# preset files.
+- insert:
+    - id: dsh-gitbash-preset
+      name: '@icelily/dsh-gitbash-preset'
