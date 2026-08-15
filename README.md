@@ -30,7 +30,7 @@ DSH 自带的极简模式在 Windows 上无法使用，失败有两层原因：
 ## 安装
 
 ```bash
-dsh plugin --profile web add link:D:\developing\DSH-plugin\dsh-gitbash-preset
+dsh plugin --profile web add @icelily/dsh-gitbash-preset
 ```
 
 或手动合并 `cordis.patch.yml` 到 profile patch 层。**重启 DSH 后生效**；重启后插件会自动安装预设（已存在则 no-op，不会覆盖你已有的版本）。
