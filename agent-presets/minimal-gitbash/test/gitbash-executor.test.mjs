@@ -14,6 +14,7 @@ import { existsSync } from 'node:fs'
 import {
   toWindowsPath,
   detectShellPath,
+  isWslBashDirectory,
   resolveConfig,
 } from '../gitbash-executor.mjs'
 
@@ -80,6 +81,26 @@ test('detectShellPath: a PATH entry whose bash.exe exists is picked up', {
 }, () => {
   const env = { PATH: 'Z:\\nope;D:\\applications\\Git\\bin' }
   assert.equal(detectShellPath(undefined, env), 'D:\\applications\\Git\\bin\\bash.exe')
+})
+
+// ── WSL 启动器防御（liceses/dsh-gitbash-preset#1）───────────────────────────
+
+test('isWslBashDirectory flags the Microsoft bash.exe stub directories', () => {
+  assert.equal(isWslBashDirectory('C:\\Windows\\System32'), true)
+  assert.equal(isWslBashDirectory('c:\\windows\\system32'), true)
+  assert.equal(isWslBashDirectory('C:\\Windows\\Sysnative'), true)
+  assert.equal(isWslBashDirectory('C:\\Windows\\SysWOW64'), true)
+  assert.equal(isWslBashDirectory('D:\\applications\\Git\\bin'), false)
+  // Deeper subdirectories are not flagged (only the launcher dir itself).
+  assert.equal(isWslBashDirectory('C:\\Windows\\System32\\drivers'), false)
+  assert.equal(isWslBashDirectory(''), false)
+})
+
+test('detectShellPath: PATH scan never picks the WSL launcher', () => {
+  // Even with only System32 on PATH, the WSL bash.exe stub must not win:
+  // without a real Git install the result falls back instead of using it.
+  const result = detectShellPath(undefined, { PATH: 'C:\\Windows\\System32' })
+  assert.notEqual(result, 'C:\\Windows\\System32\\bash.exe')
 })
 
 // ── resolveConfig ──────────────────────────────────────────────────────────

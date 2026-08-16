@@ -64,9 +64,21 @@ export function toWindowsPath(value) {
 }
 
 /**
+ * True for the directories that hold the Microsoft bash.exe stubs (the WSL
+ * launcher): `<SystemRoot>\System32` and the WoW64 mirrors. The stub merely
+ * bridges to `wsl.exe` — using it as the shell fails with "no installed
+ * distribution" when WSL has no distro (see liceses/dsh-gitbash-preset#1).
+ */
+export function isWslBashDirectory(dir) {
+  if (typeof dir !== 'string' || dir.length === 0) return false
+  return /(?:\\|\/)(?:system32|sysnative|syswow64)$/i.test(dir)
+}
+
+/**
  * Candidates for the Git-for-Windows bash executable, in preference order:
  * the GIT_BASH environment variable, the standard install roots, this
- * machine's known install location, then every `bash.exe` found on PATH.
+ * machine's known install location, then every real `bash.exe` found on PATH
+ * (WSL launcher directories under System32 are skipped).
  */
 function shellPathCandidates(env) {
   const candidates = [
@@ -79,6 +91,7 @@ function shellPathCandidates(env) {
   if (typeof env.PATH === 'string' && env.PATH.length > 0) {
     for (const dir of env.PATH.split(';')) {
       if (dir.length === 0) continue
+      if (isWslBashDirectory(dir)) continue
       candidates.push(`${dir}\\bash.exe`)
     }
   }
