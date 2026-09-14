@@ -12,11 +12,14 @@
 # tool guidance, and later assembly listeners cannot add prompt text. Runtime
 # context snapshots are suppressed, and the model composes only `bash` and
 # `str_replace_editor`. Context compaction is absent.
+#
+# The persona field is `prefix`: current `dsh-persona` no longer accepts the old
+# `text` key and fails the whole mount with "$.prefix missing required value".
 
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: You are a helpful software engineer assistant.
+    prefix: You are a helpful software engineer assistant.
     complete: true
     includeRuntimeContext: false
 
