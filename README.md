@@ -71,6 +71,8 @@ npm run test    # 单元测试：路径转换 / 探测优先级 / 配置校验�
 
 ## 限制
 
+- **DSH 版本**：预设按当前 `@deepseek-ai/dsh-persona` 的字段名 `prefix` 编写。若你的 DSH 较旧（只认 `text`），切换预设会报 `$.prefix missing required value`，把 `agent.cordis.yml` 里的 `prefix:` 改回 `text:` 即可；
+- **升级注意**：安装器对已存在的预设默认 no-op，`0.1.3` 之前的版本装出的预设是坏的（`text` 字段）。升级插件后，在插件行配置 `force: true` 或删掉 `~/.dsh/.agent-presets/minimal-gitbash/` 再重启，才会写入修好的文件；
 - 会话沙箱为 workspace-write（或更窄）时，git bash 无法启动（MSYS 受限令牌限制），需切换完全访问或单次升级——这是沙箱边界，插件不绕过；
 - 与原极简模式不同，bash 为**每次调用新 shell**（不保持 cd/export 状态）——Windows 上 PTY 持久会话不可用，此为替代设计。
 

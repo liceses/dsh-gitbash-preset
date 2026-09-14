@@ -1,6 +1,6 @@
 {
   "name": "@icelily/dsh-gitbash-preset",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "DeepSeek Harness plugin: installs the 'minimal-gitbash' agent preset — the Windows variant of the shipped minimal preset that routes the bash tool through Git for Windows bash (MSYS), with automatic shell discovery and sandbox-aware gating.",
   "type": "module",
   "main": "lib/index.js",
