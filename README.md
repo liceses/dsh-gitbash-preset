@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4.svg)
 ![Node](https://img.shields.io/badge/node-%E2%89%A520-339933.svg)
-[![DSH Plugin](https://img.shields.io/badge/DSH-plugin-4f46e5.svg)](https://github.com/liceses/awesome-dsh-plugin)
+[![DSH Plugin](https://img.shields.io/badge/DSH-plugin-4f46e5.svg)](https://github.com/topics/dsh-plugin)
 ![Version](https://img.shields.io/badge/version-0.1.3-6b7280.svg)
 
 DSH 的**极简模式**在 Windows 上不会给你 bash —— 官方按平台分叉，win32 那一支挂的是**持久 PowerShell**。
@@ -385,4 +385,4 @@ MIT —— 见仓库根目录的 [`LICENSE`](LICENSE)（`Copyright (c) 2025 icel
 ## 相关
 
 - [dsh-all-gitbash](https://github.com/liceses/dsh-all-gitbash) —— 姊妹插件：把**完整模式**下所有 pwsh 命令改道 Git Bash（带一键开关）。
-- [awesome-dsh-plugin](https://github.com/liceses/awesome-dsh-plugin) —— DSH 插件精选列表。
+- [awesome-dsh-plugin](https://github.com/liceses/awesome-dsh-plugin) —— DSH 插件精选列表（第三方整理）。**本插件尚未被它收录**；想找更多 DSH 插件可以看 [dsh-plugin 话题页](https://github.com/topics/dsh-plugin)。
