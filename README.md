@@ -19,6 +19,9 @@ DSH 的**极简模式**在 Windows 上不会给你 bash —— 官方按平台�
 > DSH `0.1.7-rc.2` 上，官方已把预设换成 bundle 声明行，**那个目录已不再被读取**。
 > 详情与出处见 [已知限制 → DSH 版本边界](#limits-version)。旧版本上是否可用，**未在本机验证**。
 
+![插件管理页里的 @icelily/dsh-gitbash-preset](docs/screenshots/plugin-page.png)
+*本机实拍：插件**装上了、组件「运行中」**，但这一页上**没有出现可选的预设卡片** —— 这正是上面那条版本边界的现场表现。*
+
 ---
 
 <a id="toc"></a>
