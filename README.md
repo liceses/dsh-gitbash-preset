@@ -15,12 +15,21 @@ DSH 的**极简模式**在 Windows 上不会给你 bash —— 官方按平台�
 一句话：**Windows 上想要一个写 bash 的极简模式，装它。**
 
 > [!IMPORTANT]
-> **先看版本边界再动手。** 本插件用的是 DSH 早期的「用户预设目录」机制；在本次勘察所用的
-> DSH `0.1.7-rc.2` 上，官方已把预设换成 bundle 声明行，**那个目录已不再被读取**。
-> 详情与出处见 [已知限制 → DSH 版本边界](#limits-version)。旧版本上是否可用，**未在本机验证**。
+> **DSH 版本边界。** 本插件现在同时支持两条装配路径，装完即可在预设列表里选到：
+> - **DSH 0.2.x**：`cordis.patch.yml` 除了安装器行，还 `insert` 一行
+>   `@deepseek-ai/dsh-agent-preset` 声明（`id: minimal-gitbash`）—— 0.2.x 的预设注册表
+>   **不再扫描用户预设目录**，预设必须以声明行出现。
+> - **DSH 0.1.x**：安装器继续把预设文件写进 `${DSH_HOME:-~/.dsh}/.agent-presets/minimal-gitbash/`，
+>   旧版启动时会读那个目录。
+>
+> 两条路径的组合内容由 `test/composition-sync.test.mjs` 强制保持一致。
+>
+> 另一处行为变更：Git Bash 在 Windows 上**无法**被 DSH 的 ACL 受限令牌沙箱包装（MSYS 起不来），
+> 所以本执行器按**未隔离**运行并在结果里标注 `enforcement: gitbash-unconfined`，**不再要求会话切到完全访问**。
+> 想恢复旧的「非完全访问就拒绝」行为，把 `requireFullAccess` 设为 `true`。
 
 ![插件管理页里的 @icelily/dsh-gitbash-preset](docs/screenshots/plugin-page.png)
-*本机实拍：插件**装上了、组件「运行中」**，但这一页上**没有出现可选的预设卡片** —— 这正是上面那条版本边界的现场表现。*
+*本机实拍（适配 0.2.x 之前的版本）：插件装上了、组件「运行中」，但预设列表里没有卡片 —— 那正是旧版「用户预设目录不再被读取」的现场表现；上面的声明行修掉了它。*
 
 ---
 
@@ -86,20 +95,23 @@ DSH 自带的极简模式是**按平台分叉**的（源码出处：`@deepseek-a
 **前置条件**：Windows；装了 **Git for Windows**；DSH 的 Node ≥ 20。
 
 ```bash
-dsh plugin --profile web add @icelily/dsh-gitbash-preset
+dsh plugin --profile desktop add @icelily/dsh-gitbash-preset
 ```
 
-装完 **重启 DSH**（插件行在启动时装配，重启时才会把预设文件写进用户预设根）。
+（profile 名按你的部署填：桌面版是 `desktop`，Web 版常见 `web`。）
+
+装完 **重启 DSH**（插件行在启动时装配，声明行也在这时候进注册表）。
 
 > **注意包名**：安装命令必须用**包名** `@icelily/dsh-gitbash-preset`，
 > 不能写仓库名 `dsh-gitbash-preset` —— 后者在 npm 上不是这个包，会装失败。
 
-然后：**新建会话 → 选「极简模式 (Git Bash)」→ 把会话沙箱切到「完全访问」**，
-之后所有 `bash` 调用直接走 Git Bash。想留在 workspace-write 也可以，让模型在第一次调用失败后
-按提示用 `sandbox_permissions: "danger-full-access"` + justification 单次升级（走正常审批流程）。
+然后：**新建会话 → 选「极简模式 (Git Bash)」**，`bash` 调用就直接走 Git Bash，
+**默认（workspace-write）会话也能用**，不需要先切「完全访问」。
 
-> ⚠️ **先读 [已知限制](#limits)。** 本插件依赖的用户预设目录在当前 DSH 上已不再被读取，
-> 装完**可能选不到这个预设**（[出处与核对方式](#limits-version)）。
+> ⚠️ **它不是被沙箱限制着跑的。** MSYS 在 Windows 受限令牌沙箱里无法初始化，所以这些命令
+> **按未隔离执行**：结果的沙箱事实里会带 `enforcement: gitbash-unconfined`（Web GUI 终端卡片可见；
+> 模型可见文本不含这一行，见 [已知限制](#limits)）。需要"宁可不跑也不越界"的部署，
+> 请把 `requireFullAccess: true` 打开（见 [配置](#config)）。
 
 ---
 
@@ -113,7 +125,7 @@ dsh plugin --profile web add @icelily/dsh-gitbash-preset
 
 ```yaml
 name: 极简模式 (Git Bash)
-description: 极简模式的 Windows 变体：bash 调用映射到 Git for Windows 的 bash（MSYS），需在"完全访问"沙箱模式或经 sandbox_permissions 单次升级后使用。
+description: 极简模式的 Windows 变体：bash 调用映射到 Git for Windows 的 bash（MSYS）；MSYS 无法被 Windows 受限令牌沙箱包装，命令按未隔离运行并在结果中标注 gitbash-unconfined。
 order: 6
 ```
 
@@ -198,7 +210,7 @@ order: 6
 ```
 模型 ──bash 工具──► ctx.shell（本预设提供的 gitbash-executor）
                           │
-                          ├─ 沙箱门控：mode !== 'danger-full-access' → 抛错 + 升级指引
+                          ├─ 沙箱事实：不包装（MSYS 无法进受限令牌），结果标 gitbash-unconfined
                           │
                           └─ subprocess.spawn([ <git bash>, '-c', <命令> ])  ──► Git Bash (MSYS)
 ```
@@ -207,10 +219,10 @@ order: 6
 
 | 环节 | 说明 | 出处 |
 | --- | --- | --- |
-| 装配点 | `cordis.patch.yml` 往 web profile 的插件名单里 `insert` 一行 `dsh-gitbash-preset`；启动时它只做一件事：把包内预设复制到用户预设根 | `cordis.patch.yml:11-13`、`lib/index.js:49-73` |
+| 装配点 | `cordis.patch.yml` 往 profile 插件名单里 `insert` 两行：安装器 `dsh-gitbash-preset`（0.1.x 的目录机制），以及预设声明行 `preset-minimal-gitbash`（0.2.x 的注册表机制） | `cordis.patch.yml`、`lib/index.js:49-73` |
 | 幂等安装 | 三个文件都在且没配 `force` → 只打一行日志返回；还会**逐字节**比对包内与已装文件，不一致时提示 `set force: true` | `lib/index.js:52-63` |
-| 服务顶替 | 预设的 `gitbash-shell` 组 `isolate: { shell: true }`，在 entry-local realm 内 `ctx.provide('shell', executor)` —— 只在本预设内生效，不碰宿主的执行器 | `agent.cordis.yml:31-47`、`gitbash-executor.mjs:346` |
-| 命令执行 | 每次调用 `subprocess.spawn([shellPath, '-c', command])`；固定注入 `NO_COLOR=1` / `TERM=dumb` / `PAGER=cat` / `GIT_PAGER=cat`，避免交互式分页器把输出卡住 | `gitbash-executor.mjs:38-43`、`:213-224` |
+| 服务顶替 | 预设的 `gitbash-shell` 组 `isolate: { shell: true }`，在 entry-local realm 内 `ctx.provide('shell', executor)` —— 只在本预设内生效，不碰宿主的执行器 | `agent.cordis.yml`、`gitbash-executor.mjs` |
+| 命令执行 | 每次调用 `subprocess.spawn([shellPath, '-c', command])`；固定注入 `NO_COLOR=1` / `TERM=dumb` / `PAGER=cat` / `GIT_PAGER=cat`，避免交互式分页器把输出卡住 | `gitbash-executor.mjs`（`ENV_OVERRIDES` / `spawnSpec`） |
 
 ### Git Bash 怎么找到的
 
@@ -258,11 +270,16 @@ order: 6
 | `maxOutputBytes` | `64000` | 单流保留字节数，溢出写入 spill 文件 |
 | `maxSpillBytes` | `67108864`（64 MB） | spill 文件上限 |
 | `graceMs` | `3000` | 终止进程的 SIGTERM→SIGKILL 宽限 |
+| `requireFullAccess` | `false` | `true` 时恢复旧策略：会话不是「完全访问」就拒绝执行并给升级指引；`false` 时按未隔离运行并在结果里标注 `gitbash-unconfined` |
 
 数值字段必须是**正的有限数**，且三个时间字段不得大于 Node 的定时器上限 `2147483647`；
-违反会在装配时抛 `TypeError`（`gitbash-executor.mjs:119-134`，测试 `:128-137`）。
+违反会在装配时抛 `TypeError`（`gitbash-executor.mjs` 的 `resolveConfig`，测试见 `shell-contract.test.mjs`）。
 
-**插件配置**（`cordis.patch.yml` 插入的那一行）：
+> `requireFullAccess` 的取舍：MSYS 在 Windows 受限令牌沙箱里根本无法初始化，所以「受限模式下的
+> Git Bash」在物理上不存在。开着它只能拒绝执行（预设不可用），关掉它则是「照跑但如实标注未隔离」。
+> 默认关，是为了让插件开箱即用；受监管环境请打开。
+
+**插件配置**（`cordis.patch.yml` 插入的 `dsh-gitbash-preset` 行）：
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
@@ -277,16 +294,20 @@ order: 6
 
 ```
 dsh-gitbash-preset/
-├── package.json                                    # 无任何依赖；dsh.bundle.patch 指向 cordis.patch.yml
-├── cordis.patch.yml                                # 装配点：insert 一行 dsh-gitbash-preset
+├── package.json                                    # 无依赖；dsh.bundle.patch 指向 cordis.patch.yml
+├── cordis.patch.yml                                # 装配点：insert 安装器行 + 预设声明行（0.2.x）
 ├── LICENSE                                         # MIT
 ├── lib/
 │   └── index.js                                    # 宿主半边（74 行）：启动时把预设复制进用户预设根
-└── agent-presets/minimal-gitbash/                  # 会被整体复制到用户预设根
+├── test/
+│   └── composition-sync.test.mjs                   # 声明行与目录副本的组合一致性门禁
+└── agent-presets/minimal-gitbash/                  # 会被整体复制到用户预设根（0.1.x 机制）
     ├── preset.yml                                  # 显示名 / 描述 / order
     ├── agent.cordis.yml                            # 预设的插件清单（persona + gitbash-shell + filesystem）
-    ├── gitbash-executor.mjs                        # 会话内 shell 服务提供者（347 行）
-    └── test/gitbash-executor.test.mjs              # 10 个用例（纯函数）
+    ├── gitbash-executor.mjs                        # 会话内 shell 服务提供者（rc.2 契约）
+    └── test/
+        ├── gitbash-executor.test.mjs               # 纯函数用例（路径翻译 / 探测优先级 / 配置校验）
+        └── shell-contract.test.mjs                 # ctx.shell 契约用例（resolve/execute/result/沙箱事实）
 ```
 
 ---
@@ -295,33 +316,30 @@ dsh-gitbash-preset/
 ## 已知限制
 
 <a id="limits-version"></a>
-### DSH 版本边界（**最重要的一条**）
+### DSH 版本边界（0.2.x 已支持）
 
-本插件的安装机制是「把预设文件写进 `${DSH_HOME:-~/.dsh}/.agent-presets/<id>/`」。
-这个目录**在较新的 DSH 上已经没人读了** —— 官方把用户预设换成了 bundle 声明行。原文出处
-（本机安装的 `@deepseek-ai/dsh-agent-preset@0.1.7-rc.2`）：
+本插件早期只有一个装配机制：「把预设文件写进 `${DSH_HOME:-~/.dsh}/.agent-presets/<id>/`」。
+这个目录**在 DSH 0.2.x 上已经没人读了** —— 官方把用户预设换成了 bundle 声明行。原文出处
+（`@deepseek-ai/dsh-agent-preset-registry` 的 README）：
 
-- `skills/editing-cordis-compositions/SKILL.md`：
-  > Before declaration rows, a user preset was a directory `$DSH_HOME/.agent-presets/<id>/` holding
-  > `preset.yml` … and `agent.cordis.yml` … **Nothing reads that directory any more.**
-- 同包 `README.md`：
-  > Declarations provide **no directory, file-copy or file-delete operations**.
-- 同技能还有一条对本地相对插件名不利的要求：
-  > **Resolve assets from installed packages rather than a preset directory.**
+- 「定义使用普通插件行；**注册表不扫描目录**，也不接受 preset 路径。」
+- 旧技能文本：`Before declaration rows, a user preset was a directory $DSH_HOME/.agent-presets/<id>/ … Nothing reads that directory any more.`
 
-**可以自己核对的旁证**：在本机 `…\@deepseek-ai\dsh\node_modules\@deepseek-ai` 目录下搜
-`.agent-presets`、`agent.cordis.yml`、`preset.yml`，**命中的只有上面这段技能文本**，
-没有任何 loader 代码读它；现在的预设是 `dsh-web-app/presets/<id>.patch.yml` 里的声明行（roster 行 id `preset-<id>`）。
+**现在的做法**：`cordis.patch.yml` 同时 `insert` 两条行 ——
 
-**结论**：在 DSH `0.1.7-rc.2` 上，安装器**会正常执行**（文件确实写到位了），
-但**不会出现可选的预设卡片**。旧版本上是否可用，**本机未验证**。
-如果你正是遇到「装完在设置里找不到极简模式 (Git Bash)」，原因就在这里。
+1. 安装器 `dsh-gitbash-preset`（写目录，服务 0.1.x）；
+2. 预设声明行 `preset-minimal-gitbash`（`@deepseek-ai/dsh-agent-preset`，`id: minimal-gitbash`），
+   组合与 `agent.cordis.yml` 一致，执行器通过包内子路径导出
+   `@icelily/dsh-gitbash-preset/executor` 引用（裸包名，从 profile 的 node_modules 解析，
+   **不需要绝对路径**，也不依赖当前工作目录）。
 
-迁移方向（**尚未实施**）：把预设改写成 bundle 声明行，并让 `gitbash-executor.mjs` 从**已安装的包**里解析，
-而不是当预设目录里的相对文件。这件事需要动源码，本次只改 README，未处理。
+两份组合内容由 `test/composition-sync.test.mjs` 强制一致，改一处忘记另一处会测试失败。
+
+> 为什么不能把 `agent.cordis.yml` 直接 `cordis:include` 进声明行：include 会把该文件的目录设为
+> 基准 URL，其后的裸包名（`@deepseek-ai/dsh-persona` 等）就会从预设目录解析而失败。
 
 <a id="limits-upgrade"></a>
-### 升级路径（对能用的版本）
+### 升级路径
 
 安装器对已存在的预设默认 **no-op**。`0.1.3` 之前的版本装出的预设是坏的（用了 `dsh-persona` 旧的
 `text` 字段，装配会报 `$.prefix missing required value`）。升级插件后要**显式**让它覆盖：
@@ -329,8 +347,10 @@ dsh-gitbash-preset/
 - 在插件行配置 `force: true`，或
 - 删掉 `~/.dsh/.agent-presets/minimal-gitbash/` 再重启。
 
-（`0.1.3` 起改用 `prefix`；本机核对 `@deepseek-ai/dsh-persona@0.1.7-rc.2` 的 schema 确实是
+（`0.1.3` 起改用 `prefix`；本机核对 `@deepseek-ai/dsh-persona` 的 schema 确实是
 `prefix` 必填、`complete` 默认 `false`、`includeRuntimeContext` 默认 `true`，与预设写法一致。）
+
+> 声明行走的是插件包自身，不受这条 no-op 影响；只有「目录副本」需要 `force`。
 
 ### 其它
 
@@ -339,9 +359,14 @@ dsh-gitbash-preset/
   [dsh-all-gitbash](https://github.com/liceses/dsh-all-gitbash) 要解决的事。
 - **需要 Git for Windows**。没装的话探测链全部落空，最终返回裸名 `bash`，每条命令都会 spawn 失败。
   装了但不在标准目录时，用 `GIT_BASH` 环境变量或 `shellPath` 配置指路。
-- **受限沙箱下用不了**。MSYS 运行时无法在 Windows 受限令牌沙箱内初始化（创建不了 signal pipe），
-  所以执行器只在 `danger-full-access`（或部署本身没有沙箱策略）下放行，其余情况抛错并给升级指引。
-  **这是沙箱边界，插件不绕过。**
+- **命令按未隔离运行**。MSYS 运行时无法在 Windows 受限令牌沙箱内初始化（创建不了 signal pipe），
+  DSH 的 ACL runner 无法包装 Git Bash 的 argv —— 包了就是每条命令直接终止。所以执行器**照常执行并如实标注**
+  `sandbox: { mode, denied: false, enforcement: 'gitbash-unconfined' }`：`dsh-tool-bash` 会把它放进结果的
+  结构化沙箱事实，Web GUI 的终端卡片据此显示 `File sandbox: <mode>; enforcement: gitbash-unconfined`。
+  **但模型可见的文本里没有这一行**（DSH 只在 `enforcement: 'partial'` 时追加提示），所以需要"模型自己也知道
+  没有隔离"的场景，请打开 `requireFullAccess`，或在会话说明里写明这条边界。
+  需要「不隔离就不跑」的部署，把 `requireFullAccess` 设为 `true` 恢复拒绝策略。
+  **这不是沙箱绕过**：插件从不声称自己隔离，也不伪装成被隔离。
 - **bash 不保持状态**。每次调用都是新 shell，`cd` / `export` 不会留到下一次；后台命令也没启用
   （`enableRunInBackground: false`）。这是「Windows 上官方持久 bash 支路被关掉」的替代设计，不是等价实现。
 - **路径有两个域**。文件工具走 Node（Windows 路径 `D:\...`），bash 走 MSYS（POSIX 路径 `/d/...`）。
@@ -356,18 +381,25 @@ dsh-gitbash-preset/
 <a id="dev"></a>
 ## 开发
 
-零依赖、零构建：`lib/index.js` 与 `agent-presets/` 都是入库的手写文件，改完直接跑。
+零依赖、零构建：`lib/index.js`、`cordis.patch.yml` 与 `agent-presets/` 都是入库的手写文件，改完直接跑。
 
 ```bash
-npm run check   # 三个文件的语法检查（插件 / 执行器 / 测试）
-npm run test    # 单元测试：10 个用例（路径转换 / 探测优先级 / WSL 启动器防御 / 配置校验）
+npm run check   # 四个文件的语法检查（插件 / 执行器 / 两份测试）
+npm run test    # 27 个用例：路径转换 / 探测优先级 / WSL 启动器防御 / 配置校验 /
+                #            ctx.shell 契约（resolve・execute・result・沙箱事实）/ 组合一致性
 ```
 
-测试只覆盖**纯函数**（`toWindowsPath` / `detectShellPath` / `isWslBashDirectory` / `resolveConfig`），
-不碰 `ctx`、不真的 spawn —— 真实的 spawn 路径要在活的 DSH 会话里验证（测试文件头注释原话）。
+测试里没有真 spawn：`gitbash-executor.test.mjs` 覆盖纯函数，`shell-contract.test.mjs` 用
+假的 `ctx.subprocess` 验证接缝契约，`composition-sync.test.mjs` 比对两份组合。真实的 spawn 路径
+要在活的 DSH 会话里验证（本机实测：`uname -o` → `Msys`、超时标记、非零退出、`gitbash-unconfined`）。
 
-**改预设要注意**：预设是「复制到用户预设根」的一次性动作，改了包内文件后，已经装过的机器
-**不会自动更新**（默认 no-op）。本地迭代要么配 `force: true`，要么先删掉已装目录。
+**改预设要注意两处**：
+
+1. **声明行**（`cordis.patch.yml`）立刻生效 —— 保存 profile patch 会热重载，无需重启；
+2. **目录副本**（`agent-presets/`）是「复制到用户预设根」的一次性动作，改了包内文件后，已经装过的机器
+   **不会自动更新**（默认 no-op）；本地迭代要么配 `force: true`，要么先删掉已装目录。
+
+改完跑一次 `npm test`，`composition-sync.test.mjs` 会拦住两份组合的不一致。
 
 > 想在本地边改边试，也可以不装插件，直接把 `agent-presets/minimal-gitbash/` 复制到
 > `~/.dsh/.agent-presets/` —— 但这条捷径同样受 [DSH 版本边界](#limits-version) 影响。

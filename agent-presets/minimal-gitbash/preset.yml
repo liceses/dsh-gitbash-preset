@@ -1,3 +1,3 @@
 name: 极简模式 (Git Bash)
-description: 极简模式的 Windows 变体：bash 调用映射到 Git for Windows 的 bash（MSYS），需在"完全访问"沙箱模式或经 sandbox_permissions 单次升级后使用。
+description: 极简模式的 Windows 变体：bash 调用映射到 Git for Windows 的 bash（MSYS）；MSYS 无法被 Windows 受限令牌沙箱包装，命令按未隔离运行并在结果中标注 gitbash-unconfined。
 order: 6

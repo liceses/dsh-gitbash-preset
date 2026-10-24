@@ -1,13 +1,74 @@
-# dsh-gitbash-preset bundle patch: inserts the installer row into the web
-# profile roster. Applied as a profile bundle layer (the `dsh.bundle.patch`
-# manifest field); activate with:
+# dsh-gitbash-preset bundle patch: installs the `minimal-gitbash` agent preset.
 #
-#   dsh plugin --profile web add @icelily/dsh-gitbash-preset
+# Two rows are inserted into the profile roster:
 #
-# The row's node half copies the packaged `minimal-gitbash` agent preset into
-# the user preset root (${DSH_HOME:-~/.dsh}/.agent-presets) on boot, unless it
-# is already installed. Pass `force: true` in the row config to overwrite the
-# preset files.
+#  1. `dsh-gitbash-preset` — the installer. On boot it copies the packaged
+#     preset files into the user preset root (`${DSH_HOME:-~/.dsh}/.agent-presets`),
+#     which is what DSH 0.1.x read at startup. Idempotent; `force: true`
+#     overwrites the copied files.
+#
+#  2. `preset-minimal-gitbash` — the preset registration. DSH 0.2.x dropped the
+#     user preset directory: `@deepseek-ai/dsh-agent-preset-registry` no longer
+#     scans directories, and every preset is a declaration row. This row is the
+#     same composition as `agent-presets/minimal-gitbash/agent.cordis.yml`
+#     (kept for the 0.1.x directory mechanism and as the readable source), with
+#     the executor imported through the package subpath export
+#     `@icelily/dsh-gitbash-preset/executor` — a bare specifier, so it resolves
+#     from the profile's node_modules and needs no absolute path.
+#
+#     KEEP THE TWO COMPOSITIONS IN SYNC: `test/composition-sync.test.mjs`
+#     compares them and fails on drift.
+#
+# Activate with (desktop profile):
+#
+#   dsh plugin --profile desktop add @icelily/dsh-gitbash-preset
 - insert:
     - id: dsh-gitbash-preset
       name: '@icelily/dsh-gitbash-preset'
+    - id: preset-minimal-gitbash
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: minimal-gitbash
+        name: 极简模式 (Git Bash)
+        description: 极简模式的 Windows 变体：bash 调用映射到 Git for Windows 的 bash（MSYS）；MSYS 无法被 Windows 受限令牌沙箱包装，命令按未隔离运行并在结果中标注 gitbash-unconfined。
+        order: 6
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: You are a helpful software engineer assistant.
+              complete: true
+              includeRuntimeContext: false
+          - id: gitbash-shell
+            name: cordis:group
+            group: true
+            disabled: !!js process.platform !== 'win32'
+            isolate:
+              shell: true
+            config:
+              - id: gitbash-executor
+                name: '@icelily/dsh-gitbash-preset/executor'
+                config:
+                  timeoutMs: 120000
+                  maxTimeoutMs: 600000
+                  maxOutputBytes: 64000
+                  maxSpillBytes: 67108864
+                  graceMs: 3000
+              - id: tool-bash
+                name: '@deepseek-ai/dsh-tool-bash'
+                config:
+                  enableRunInBackground: false
+          - id: filesystem
+            name: cordis:group
+            group: true
+            isolate:
+              fs: true
+            config:
+              - id: fs-local
+                name: '@deepseek-ai/dsh-fs-local'
+                config:
+                  cwd: !!js process.env.DSH_CWD ?? process.cwd()
+              - id: str-replace-editor
+                name: '@deepseek-ai/dsh-tool-str-replace-editor'
+                config:
+                  maxOutputChars: 16000
