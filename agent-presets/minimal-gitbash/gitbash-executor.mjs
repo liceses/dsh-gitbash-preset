@@ -284,6 +284,47 @@ export function apply(ctx, config) {
       }
     },
 
+    /**
+     * The shell seam contract (`@deepseek-ai/dsh-shell`) is
+     * `execute(spec) -> ShellProcess`: a live handle exposing `result()`,
+     * `readOutput()`, `kill()`, `done` and `observed`. `run()` predates that
+     * rename and returns the final result only, so a service exposing `run`
+     * alone makes `tool-bash` fail with
+     * `ctx.shell.execute is not a function`.
+     *
+     * `execute` reuses the same spawn path and arms the same deadline as
+     * `run`, then publishes the handle `start()` already builds.
+     */
+    async execute(spec) {
+      const mode = spec.sandboxPolicy?.mode
+      if (mode !== undefined && mode !== 'danger-full-access') {
+        throw new Error(gateMessage(mode))
+      }
+      const fused = timeoutSignal(spec.signal, spec.timeoutMs)
+      const proc = executor.start({ ...spec, signal: fused.signal })
+      const disarm = () => fused.dispose()
+      proc.done.then(disarm, disarm)
+      let resultPromise
+      proc.result = () => {
+        resultPromise ??= proc.done.then(() => {
+          const timedOut = fused.timedOut()
+          const aborted = spec.signal !== undefined && spec.signal.aborted && !timedOut
+          return {
+            exitCode: proc.exitCode,
+            signal: proc.signal,
+            timedOut,
+            aborted,
+            timeoutMs: spec.timeoutMs,
+            stdout: finalOutput(proc.observed.stdout),
+            stderr: finalOutput(proc.observed.stderr),
+            ...mode === undefined ? {} : { sandbox: { mode, denied: false } },
+          }
+        })
+        return resultPromise
+      }
+      return proc
+    },
+
     start(spec) {
       const mode = spec.sandboxPolicy?.mode
       if (mode !== undefined && mode !== 'danger-full-access') {
@@ -306,6 +347,7 @@ export function apply(ctx, config) {
         status: 'running',
         exitCode: null,
         signal: null,
+        observed: { stdout: collected.stdout, stderr: collected.stderr },
         done: running.done.then((outcome) => {
           if (proc.status === 'running') {
             proc.status = spec.signal?.aborted === true || outcome.signal !== null

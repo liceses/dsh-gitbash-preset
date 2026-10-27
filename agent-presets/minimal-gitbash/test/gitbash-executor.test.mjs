@@ -16,6 +16,7 @@ import {
   detectShellPath,
   isWslBashDirectory,
   resolveConfig,
+  apply,
 } from '../gitbash-executor.mjs'
 
 // ── toWindowsPath ──────────────────────────────────────────────────────────
@@ -135,4 +136,62 @@ test('resolveConfig: rejects non-positive numeric config', () => {
   assert.throws(() => resolveConfig({ timeoutMs: 0 }, {}), /positive/)
   assert.throws(() => resolveConfig({ maxOutputBytes: -1 }, {}), /positive/)
   assert.throws(() => resolveConfig({ maxSpillBytes: NaN }, {}), /positive/)
+})
+
+// ── execute(): the ShellProcess seam ───────────────────────────────────────
+
+function offsetReader(text) {
+  return {
+    readFrom(offset) {
+      return { text: text.slice(offset), nextOffset: text.length, lossy: false }
+    },
+  }
+}
+
+/** Minimal ctx: no real process, only the services `apply()` reaches for. */
+function stubCtx(collected) {
+  const provided = {}
+  const ctx = {
+    get: (service) => service === 'subprocess'
+      ? {
+          spawn: () => ({
+            pid: 4242,
+            done: Promise.resolve({ exitCode: 0, signal: null }),
+            collected,
+            terminate() {},
+          }),
+        }
+      : undefined,
+    provide: (service, impl) => { provided[service] = impl },
+  }
+  return { ctx, provided }
+}
+
+test('execute() publishes the handle tool-bash consumes', async () => {
+  const collected = { stdout: offsetReader('hello\n'), stderr: offsetReader('boo\n') }
+  const { ctx, provided } = stubCtx(collected)
+  apply(ctx, { shellPath: process.execPath, cwd: process.cwd() })
+
+  const shell = provided.shell
+  assert.equal(typeof shell.execute, 'function',
+    'execute() must exist: tool-bash calls ctx.shell.execute(ctx.shell.resolve(...))')
+
+  const spec = shell.resolve({ command: 'echo hello' })
+  const proc = await shell.execute(spec)
+
+  for (const key of ['status', 'exitCode', 'observed', 'done', 'readOutput', 'kill', 'result']) {
+    assert.ok(proc[key] !== undefined, `handle.${key} must be published`)
+  }
+
+  // Consecutive reads never repeat output; stderr is marked as a section.
+  assert.equal(proc.readOutput().delta, 'hello\n[stderr]\nboo\n')
+  assert.equal(proc.readOutput().delta, '')
+
+  const result = await proc.result()
+  assert.equal(result.exitCode, 0)
+  assert.equal(result.timedOut, false)
+  assert.equal(result.aborted, false)
+  assert.equal(result.stdout.text, 'hello\n')
+  assert.equal(result.stderr.text, 'boo\n')
+  assert.equal(proc.kill(), false, 'kill() reports false once the command finished')
 })
